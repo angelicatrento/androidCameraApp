@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    tools:context="com.example.angelica.cameratest.CameraActivity"
+    >
+
+    <TextureView
+        android:id="@+id/texture"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout_alignParentStart="true"
+        android:layout_alignParentTop="true" />
+
+    <fragment
+        android:id="@+id/company_fragment"
+        android:name="com.example.angelica.cameratest.GalleryImageItemFragment"
+        android:layout_width="fill_parent"
+        android:layout_height="wrap_content"
+        android:layout_above="@+id/linearLayout"
+        android:layout_marginStart="11dp" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="100dp"
+        android:layout_alignBottom="@id/texture"
+        android:layout_centerVertical="true"
+        android:layout_centerHorizontal="true"
+        android:layout_marginLeft="50dp"
+        android:layout_marginRight="50dp"
+        android:paddingBottom="10dp"
+        android:gravity="center"
+        android:id="@+id/linearLayout">
+
+        <ImageButton
+            android:id="@+id/btn_switch_camera"
+            android:layout_width="50dp"
+            android:layout_height="50dp"
+            app:srcCompat="@drawable/camera_switch"
+            android:scaleType="fitCenter"
+            android:adjustViewBounds="true"
+            android:layout_gravity="center"
+            android:paddingRight="10dp"
+            android:background="@null" />
+
+        <ImageButton
+            android:id="@+id/btn_takephoto"
+            android:layout_width="100dp"
+            android:layout_height="match_parent"
+            android:adjustViewBounds="true"
+            android:background="@null"
+            android:scaleType="fitCenter"
+            app:srcCompat="@drawable/circle_outline" />
+
+        <ToggleButton
+            android:id="@+id/btn_check_flash"
+            android:layout_width="50dp"
+            android:layout_height="50dp"
+            android:layout_gravity="center"
+            android:adjustViewBounds="true"
+            android:background="@drawable/btn_toggle_flashlight"
+            android:paddingLeft="10dp"
+            android:scaleType="fitCenter"
+            android:textOff=""
+            android:textOn="" />
+
+    </LinearLayout>
+
+</RelativeLayout>
