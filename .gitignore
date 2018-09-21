@@ -1,0 +1,5 @@
+*~
+build
+
+# ignore objects and archives, anywhere in the tree.
+.gradle/*
