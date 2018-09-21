@@ -10,9 +10,7 @@ import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.pm.PackageManager;
-import android.content.res.Configuration;
 import android.graphics.Bitmap;
-import android.graphics.BitmapFactory;
 import android.graphics.ImageFormat;
 import android.graphics.Matrix;
 import android.graphics.Point;
@@ -30,13 +28,17 @@ import android.hardware.camera2.TotalCaptureResult;
 import android.hardware.camera2.params.StreamConfigurationMap;
 import android.media.Image;
 import android.media.ImageReader;
-import android.os.Bundle;
 import android.os.Environment;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.support.annotation.NonNull;
 import android.support.v4.app.ActivityCompat;
+import android.support.v4.app.Fragment;
+import android.support.v4.app.FragmentManager;
+import android.support.v4.app.FragmentTransaction;
+import android.support.v4.content.ContextCompat;
 import android.support.v7.app.AppCompatActivity;
+import android.os.Bundle;
 import android.util.Log;
 import android.util.Size;
 import android.util.SparseIntArray;
@@ -49,10 +51,8 @@ import android.widget.Toast;
 import android.widget.ToggleButton;
 
 import java.io.File;
-import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
@@ -153,10 +153,11 @@ public class CameraActivity extends AppCompatActivity implements GalleryImageIte
     private boolean mFlashSupported;
     private Handler mBackgroundHandler;
     private HandlerThread mBackgroundThread;
-
+    private int imageAlbumId;
     List<ActivityManager.RunningAppProcessInfo> processes;
     ActivityManager amg;
-
+    Fragment fragment;
+    FragmentManager fragmentManager;
     private TextureView mTextureView;
 
 
@@ -165,6 +166,29 @@ public class CameraActivity extends AppCompatActivity implements GalleryImageIte
         super.onCreate(savedInstanceState);
 
         this.setContentView(R.layout.activity_camera);
+
+//        if (ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE)
+//                != PackageManager.PERMISSION_GRANTED) {
+//            ActivityCompat.requestPermissions(CameraActivity.this, new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE}, REQUEST_CAMERA_PERMISSION);
+//            //requestCameraPermission();
+//        } else if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA)
+//                != PackageManager.PERMISSION_GRANTED
+//            //&& ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE)
+//            //!= PackageManager.PERMISSION_GRANTED
+//                ) {
+//
+//            //if (ActivityCompat.checkSelfPermission(CameraActivity.this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(CameraActivity.this, Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
+//            System.out.println("onCamera: USER NEEDS PERMISSION");
+//            // ActivityCompat.requestPermissions(CameraActivity.this, new String[]{Manifest.permission.CAMERA, Manifest.permission.WRITE_EXTERNAL_STORAGE}, REQUEST_CAMERA_PERMISSION);
+//            requestCameraPermission();
+//            return;
+//        } else {
+//
+//            System.out.println("onCamera: USER HAVE ALL PERMISSIONS");
+//        }
+
+        fragmentManager = getSupportFragmentManager();
+
 
         assert mTextureView != null;
         mTextureView = (TextureView) findViewById(R.id.texture);
@@ -176,29 +200,7 @@ public class CameraActivity extends AppCompatActivity implements GalleryImageIte
         isFlashOn = (ToggleButton) findViewById(R.id.btn_check_flash);
         cameraController = 0;
 
-        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
-            ActivityCompat.requestPermissions(CameraActivity.this, new String[]{Manifest.permission.CAMERA, Manifest.permission.WRITE_EXTERNAL_STORAGE}, REQUEST_CAMERA_PERMISSION);
-            //return;
-        }
-       if (ActivityCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE)
-                != PackageManager.PERMISSION_GRANTED) {
-            ActivityCompat.requestPermissions(CameraActivity.this, new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE}, REQUEST_CAMERA_PERMISSION);
-            //requestCameraPermission();
-            //return;
-        } else {
-
-            System.out.println("onCamera: USER HAVE ALL PERMISSIONS");
-            //loadFragment();
-        }
-
-        try {
-            mFile = createImageFile();
-            //parImage = mFile;
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-
-
+        //mTextureView.setSurfaceTextureListener(mSurfaceTextureListener);
         //mTextureView.setSurfaceTextureListener(mSurfaceTextureListener);
 
         takePictureButton.setOnClickListener(new View.OnClickListener() {
@@ -208,8 +210,7 @@ public class CameraActivity extends AppCompatActivity implements GalleryImageIte
             }
         });
 
-        switchCameraButton.setOnClickListener(new View.OnClickListener()
-              {
+        switchCameraButton.setOnClickListener(new View.OnClickListener() {
                   @Override
                   public void onClick(View v){
                       switchCamera();
@@ -230,24 +231,71 @@ public class CameraActivity extends AppCompatActivity implements GalleryImageIte
                  }
              }
         );
+
+        Intent intent = getIntent();
+
+        if (intent != null && intent.hasExtra("IMAGE_ID")) {
+            String validate = intent.getStringExtra("IMAGE_ID");
+            System.out.println("Validate camera_id " + validate);
+            if (validate != null && !validate.trim().equals("")) {
+
+                imageAlbumId = Integer.parseInt(validate);
+                System.out.println("This is the image id " + imageAlbumId);
+
+            }
+
+        }
+        //openCamera(cameraController,mTextureView.getWidth(),mTextureView.getHeight());
     }
 
     TextureView.SurfaceTextureListener mSurfaceTextureListener = new TextureView.SurfaceTextureListener() {
         @Override
-        public void onSurfaceTextureAvailable(SurfaceTexture surface, int width, int height) {
+        public void onSurfaceTextureAvailable(SurfaceTexture surface, final int width, final int height) {
             //open your camera here
-            System.out.println("onSurfaceTextureAvailable");
+            //createCameraPreviewSession();
+            //closeCamera();
+            System.out.println("Verify permission");
+
+//            if (ContextCompat.checkSelfPermission(CameraActivity.this, Manifest.permission.CAMERA)
+//                    != PackageManager.PERMISSION_GRANTED
+//                    ) {
+//                //if (ActivityCompat.checkSelfPermission(CameraActivity.this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(CameraActivity.this, Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
+//                System.out.println("onCamera: USER NEEDS PERMISSION");
+//                // ActivityCompat.requestPermissions(CameraActivity.this, new String[]{Manifest.permission.CAMERA, Manifest.permission.WRITE_EXTERNAL_STORAGE}, REQUEST_CAMERA_PERMISSION);
+//                requestCameraPermission();
+//                return;
+//            } else if (ContextCompat.checkSelfPermission(CameraActivity.this
+//                    , Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
+//                ActivityCompat.requestPermissions(CameraActivity.this, new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE}, REQUEST_CAMERA_PERMISSION);
+//                return;
+//            } else {
+
+
+            // Execute some code after 500 milliseconds have passed
+            Handler handler = new Handler();
+            handler.postDelayed(new Runnable() {
+                @Override
+                public void run() {
+                    System.out.println("Open Camera if possible");
             openCamera(cameraController,width, height);
         }
+            }, 100);
+            // }
+
+        }
+
         @Override
         public void onSurfaceTextureSizeChanged(SurfaceTexture surface, int width, int height) {
             // Transform you image captured size according to the surface width and height
-            System.out.println("onSurfaceTextureSizeChanged");
             configureTransform(width, height);
         }
         @Override
         public boolean onSurfaceTextureDestroyed(SurfaceTexture surface) {
-            return false;
+            if (mTextureView != null) {
+                mTextureView.setSurfaceTextureListener(null);
+            }
+
+            return true;
         }
         @Override
         public void onSurfaceTextureUpdated(SurfaceTexture surface) {
@@ -257,6 +305,8 @@ public class CameraActivity extends AppCompatActivity implements GalleryImageIte
 
     public void onListFragmentInteraction(LoadedImage item){
         System.out.println("COMPANY CLICKED ON ACTIVITY");
+        System.out.println("SHOW IMAGE " + item.getPath());
+        showImage(item.getBitmap(), item.getPath());
 
 //        Toast.makeText(this, item.getImageTitleName(), Toast.LENGTH_SHORT).show();
     }
@@ -271,7 +321,8 @@ public class CameraActivity extends AppCompatActivity implements GalleryImageIte
             createCameraPreviewSession();
         }
         @Override
-        public void onDisconnected(CameraDevice cameraDevice) {;
+        public void onDisconnected(CameraDevice cameraDevice) {
+            ;
             mCameraOpenCloseLock.release();
             cameraDevice.close();
             mCameraDevice = null;
@@ -284,6 +335,12 @@ public class CameraActivity extends AppCompatActivity implements GalleryImageIte
             finish();
         }
     };
+
+    @Override
+    public void onDestroy() {
+        super.onDestroy();
+        Runtime.getRuntime().gc();
+    }
 
     private CameraCaptureSession.CaptureCallback mCaptureCallback = new CameraCaptureSession.CaptureCallback() {
         private void process(CaptureResult result) {
@@ -493,12 +550,10 @@ public class CameraActivity extends AppCompatActivity implements GalleryImageIte
             captureBuilder.set(CaptureRequest.CONTROL_AF_MODE,
                     CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE);
 
-            if(flashAvailable && isFlashOn.isChecked())
-            {
+            if (flashAvailable && isFlashOn.isChecked()) {
                 System.out.println("CAPTURE WITH FLASH ON -------------------------------------------------------------------");
                 captureBuilder.set(CaptureRequest.CONTROL_AE_MODE, CameraMetadata.CONTROL_AE_MODE_ON_ALWAYS_FLASH);
-            }
-            else{
+            } else {
                 captureBuilder.set(CaptureRequest.CONTROL_MODE, CameraMetadata.CONTROL_MODE_AUTO);
             }
 
@@ -522,6 +577,8 @@ public class CameraActivity extends AppCompatActivity implements GalleryImageIte
                     Intent confirmPictureActivity = new Intent(CameraActivity.this,PictureConfirmation.class);
                     confirmPictureActivity.putExtra("PICTURE",mFile.getAbsolutePath());
                     confirmPictureActivity.putExtra("CAMERA",mCameraId);
+                    confirmPictureActivity.putExtra("IMAGE_ID", String.valueOf(imageAlbumId));
+                    System.out.println("This is the image id " + imageAlbumId);
                     //mCaptureSession.stopRepeating();
                     mCameraDevice.close();
                     finish();
@@ -538,17 +595,35 @@ public class CameraActivity extends AppCompatActivity implements GalleryImageIte
         }
     }
 
+    private void showImage(Bitmap image, String Path) {
+        Intent confirmPictureActivity = new Intent(this, PictureConfirmation.class);
+        confirmPictureActivity.putExtra("PICTURE", Path);
+        confirmPictureActivity.putExtra("CAMERA", mCameraId);
+        confirmPictureActivity.putExtra("GALLERY", "1");
+        confirmPictureActivity.putExtra("IMAGE_ID", String.valueOf(imageAlbumId));
+        System.out.println("This is the image id " + imageAlbumId);
+        //confirmPictureActivity.putExtra("image", filename);
+
+        //      closeCamera();
+        if (mCameraDevice != null)
+            mCameraDevice.close();
+        System.out.println("START ACTIVITY ");
+        startActivity(confirmPictureActivity);
+        System.out.println("END PREVIOUS ACTIVITY");
+        //closeCamera();
+        //stopBackgroundThread();
+        this.finish();
+    }
+
     private void unlockFocus() {
         try {
             // Reset the auto-focus trigger
             mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AF_TRIGGER,
                     CameraMetadata.CONTROL_AF_TRIGGER_CANCEL);
-            if(flashAvailable && isFlashOn.isChecked())
-            {
+            if (flashAvailable && isFlashOn.isChecked()) {
                 System.out.println("CAPTURE WITH FLASH ON -------------------------------------------------------------------");
                 mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AE_MODE, CameraMetadata.CONTROL_AE_MODE_ON_ALWAYS_FLASH);
-            }
-            else{
+            } else {
                 mPreviewRequestBuilder.set(CaptureRequest.CONTROL_MODE, CameraMetadata.CONTROL_MODE_AUTO);
             }
             mCaptureSession.capture(mPreviewRequestBuilder.build(), mCaptureCallback,
@@ -575,8 +650,7 @@ public class CameraActivity extends AppCompatActivity implements GalleryImageIte
 
         System.out.println("ORIENTATIONS ------------------------------------------------------ " + rotation + " ------------------------- " + ORIENTATIONS.get(rotation));
         System.out.println("CHARACTERISTCS ------------------------------------------------ " + mSensorOrientation);
-        if(mCameraId.contains(CAMERA_FRONT))
-        {
+        if (mCameraId.contains(CAMERA_FRONT)) {
             //int displayRotation = (mSensorOrientation + ORIENTATIONS.get(rotation)) % 360;
 //            rotation = 360 - rotation;
 //            if (rotation == 360) {
@@ -584,9 +658,7 @@ public class CameraActivity extends AppCompatActivity implements GalleryImageIte
 //            }
             return ( ORIENTATIONS.get(rotation) + (mSensorOrientation) + 270) % 360;
 
-        }
-        else
-        {
+        } else {
             //(cameraRotationOffset - degrees + 360) % 360;
             //return (mSensorOrientation - ORIENTATIONS.get(rotation) + 360) % 360;
             return (ORIENTATIONS.get(rotation) + mSensorOrientation + 270) % 360;
@@ -630,8 +702,7 @@ public class CameraActivity extends AppCompatActivity implements GalleryImageIte
                     = mCameraDevice.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW);
             mPreviewRequestBuilder.addTarget(surface);
 
-            if(flashAvailable)
-            {
+            if (flashAvailable) {
                 mPreviewRequestBuilder.set(CaptureRequest.FLASH_MODE, CameraMetadata.FLASH_MODE_OFF);
 
             }
@@ -661,22 +732,118 @@ public class CameraActivity extends AppCompatActivity implements GalleryImageIte
     }
 
     private void turnOnFlashLight()  {
+        mState = STATE_PREVIEW;
         mPreviewRequestBuilder.set(CaptureRequest.FLASH_MODE, CameraMetadata.FLASH_MODE_TORCH);
         try {
-            mCaptureSession.setRepeatingRequest(mPreviewRequestBuilder.build(), null, null);
+            mCaptureSession.setRepeatingRequest(mPreviewRequestBuilder.build(), mCaptureCallback, mBackgroundHandler);
         } catch (CameraAccessException e) {
             e.printStackTrace();
         }
     }
 
     private void turnOffFlashLight() {
+        mState = STATE_PREVIEW;
         mPreviewRequestBuilder.set(CaptureRequest.FLASH_MODE, CameraMetadata.FLASH_MODE_OFF);
         try {
-            mCaptureSession.setRepeatingRequest(mPreviewRequestBuilder.build(), null, null);
+            mCaptureSession.setRepeatingRequest(mPreviewRequestBuilder.build(), mCaptureCallback, mBackgroundHandler);
         } catch (CameraAccessException e) {
             e.printStackTrace();
         }
 
+    }
+
+    private void openCamera(int parCameraId, int width, int height) {
+        System.out.println("CAMERA OPEN ----------------------------------");
+        // Add permission for camera and let user grant the permission
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA)
+                != PackageManager.PERMISSION_GRANTED
+            //&& ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE)
+            //!= PackageManager.PERMISSION_GRANTED
+                ) {
+
+            //if (ActivityCompat.checkSelfPermission(CameraActivity.this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(CameraActivity.this, Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
+            System.out.println("onCamera: USER NEEDS PERMISSION");
+            // ActivityCompat.requestPermissions(CameraActivity.this, new String[]{Manifest.permission.CAMERA, Manifest.permission.WRITE_EXTERNAL_STORAGE}, REQUEST_CAMERA_PERMISSION);
+            requestCameraPermission();
+            return;
+        } else if (ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE)
+                != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(CameraActivity.this, new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE}, REQUEST_CAMERA_PERMISSION);
+            //requestCameraPermission();
+            return;
+        } else {
+
+            System.out.println("onCamera: USER HAVE ALL PERMISSIONS");
+        }
+
+        if(mCurrentPhotoPath == null && mFile == null) {
+            try {
+
+                mFile = createImageFile();
+                //parImage = mFile;
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+        setUpCameraOutputs(width, height, parCameraId);
+        configureTransform(width, height);
+
+        int qttCamera = 0;
+
+
+        //try {
+        final CameraManager manager = (CameraManager) getSystemService(Context.CAMERA_SERVICE);
+        Handler handler = new Handler();
+        try {
+            if (!mCameraOpenCloseLock.tryAcquire(2500, TimeUnit.MILLISECONDS)) {
+                throw new RuntimeException("Time out waiting to lock camera opening.");
+            }
+
+//            handler.postDelayed(new Runnable() {
+//                    @Override
+//                    public void run() {
+
+            if (ActivityCompat.checkSelfPermission(CameraActivity.this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(CameraActivity.this, Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
+                System.out.println("USER NEEDS PERMISSION");
+                ActivityCompat.requestPermissions(CameraActivity.this, new String[]{Manifest.permission.CAMERA, Manifest.permission.WRITE_EXTERNAL_STORAGE}, REQUEST_CAMERA_PERMISSION);
+                // return;
+            } else {
+
+                Log.e(TAG, "is camera open");
+                System.out.println("USER HAVE PERMISSION");
+
+
+//                handler.postDelayed(new Runnable() {
+//                    @Override
+//                    public void run() {
+//                        if (ActivityCompat.checkSelfPermission(CameraActivity.this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(CameraActivity.this, Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
+//                            System.out.println("USER NEEDS PERMISSION");
+//                            ActivityCompat.requestPermissions(CameraActivity.this, new String[]{Manifest.permission.CAMERA, Manifest.permission.WRITE_EXTERNAL_STORAGE}, REQUEST_CAMERA_PERMISSION);
+//                        } else {
+                try {
+
+                    manager.openCamera(mCameraId, mStateCallback, mBackgroundHandler);
+                } catch (CameraAccessException e) {
+                    if (ActivityCompat.checkSelfPermission(CameraActivity.this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(CameraActivity.this, Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
+                        System.out.println("USER NEEDS PERMISSION");
+                        ActivityCompat.requestPermissions(CameraActivity.this, new String[]{Manifest.permission.CAMERA, Manifest.permission.WRITE_EXTERNAL_STORAGE}, REQUEST_CAMERA_PERMISSION);
+                        //  return;
+                    }
+                }
+//                        }
+//                    }
+//                }, 600);
+            }
+
+//                    }
+//                    }, 300);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+        //}catch (InterruptedException e) {
+        //     throw new RuntimeException("Interrupted while trying to lock camera opening.", e);
+        //}
+        Log.e(TAG, "openCamera X");
     }
 
     private void requestCameraPermission() {
@@ -689,6 +856,40 @@ public class CameraActivity extends AppCompatActivity implements GalleryImageIte
         }
     }
 
+    /**
+     * Shows an error message dialog.
+     */
+    public static class ErrorDialog extends DialogFragment {
+
+        private static final String ARG_MESSAGE = "message";
+
+        public static ErrorDialog newInstance(String message) {
+            ErrorDialog dialog = new ErrorDialog();
+            Bundle args = new Bundle();
+            args.putString(ARG_MESSAGE, message);
+            dialog.setArguments(args);
+            return dialog;
+        }
+
+        @Override
+        public Dialog onCreateDialog(Bundle savedInstanceState) {
+            final Activity activity = getActivity();
+            return new AlertDialog.Builder(activity)
+                    .setMessage(getArguments().getString(ARG_MESSAGE))
+                    .setPositiveButton(android.R.string.ok, new DialogInterface.OnClickListener() {
+                        @Override
+                        public void onClick(DialogInterface dialogInterface, int i) {
+                            activity.finish();
+                        }
+                    })
+                    .create();
+        }
+
+    }
+
+    /**
+     * Shows OK/Cancel confirmation dialog about camera permission.
+     */
     public static class ConfirmationDialog extends DialogFragment {
 
         @Override
@@ -718,50 +919,6 @@ public class CameraActivity extends AppCompatActivity implements GalleryImageIte
         }
     }
 
-    private void openCamera(int parCameraId,int width, int height) {
-        // Add permission for camera and let user grant the permission
-        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.CAMERA)
-                != PackageManager.PERMISSION_GRANTED
-            //&& ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE)
-            //!= PackageManager.PERMISSION_GRANTED
-                ) {
-
-            //if (ActivityCompat.checkSelfPermission(CameraActivity.this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(CameraActivity.this, Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
-            System.out.println("onCamera: USER NEEDS PERMISSION");
-            // ActivityCompat.requestPermissions(CameraActivity.this, new String[]{Manifest.permission.CAMERA, Manifest.permission.WRITE_EXTERNAL_STORAGE}, REQUEST_CAMERA_PERMISSION);
-            requestCameraPermission();
-            return;
-        } else if (ActivityCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE)
-                != PackageManager.PERMISSION_GRANTED) {
-            ActivityCompat.requestPermissions(CameraActivity.this, new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE}, REQUEST_CAMERA_PERMISSION);
-            //requestCameraPermission();
-            return;
-        } else {
-
-            System.out.println("onCamera: USER HAVE ALL PERMISSIONS");
-            //loadFragment();
-        }
-        setUpCameraOutputs(width, height,parCameraId);
-        configureTransform(width, height);
-
-        int qttCamera = 0;
-        CameraManager manager = (CameraManager) getSystemService(Context.CAMERA_SERVICE);
-        Log.e(TAG, "is camera open");
-
-
-        try {
-            if (!mCameraOpenCloseLock.tryAcquire(2500, TimeUnit.MILLISECONDS)) {
-                throw new RuntimeException("Time out waiting to lock camera opening.");
-            }
-            manager.openCamera(mCameraId, mStateCallback, mBackgroundHandler);
-
-        } catch (CameraAccessException e) {
-            e.printStackTrace();
-        } catch (InterruptedException e) {
-            throw new RuntimeException("Interrupted while trying to lock camera opening.", e);
-        }
-        Log.e(TAG, "openCamera X");
-    }
 
     private void switchCamera(){
         if (mCameraId.equals(CAMERA_FRONT)) {
@@ -826,13 +983,16 @@ public class CameraActivity extends AppCompatActivity implements GalleryImageIte
     @Override
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
         if (requestCode == REQUEST_CAMERA_PERMISSION) {
-            if(grantResults.length > 0) {
-                if (grantResults[0] == PackageManager.PERMISSION_DENIED) {
+            if (grantResults != null && grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_DENIED) {
                     // close the app
-                    Toast.makeText(CameraActivity.this, "Sorry!!!, you can't use this app without granting permission", Toast.LENGTH_LONG).show();
+//                if (ActivityCompat.checkSelfPermission(CameraActivity.this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(CameraActivity.this, Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
+//                    // System.out.println("USER NEEDS PERMISSION");
+//                    ActivityCompat.requestPermissions(CameraActivity.this, new String[]{Manifest.permission.CAMERA, Manifest.permission.WRITE_EXTERNAL_STORAGE}, REQUEST_CAMERA_PERMISSION);
+//                }
                     finish();
                 }
-            }
+        } else {
+            super.onRequestPermissionsResult(requestCode, permissions, grantResults);
         }
     }
 
@@ -1001,7 +1161,7 @@ public class CameraActivity extends AppCompatActivity implements GalleryImageIte
     }
     
     /**
-     * Configures the necessary {@link android.graphics.Matrix} transformation to `mTextureView`.
+     * Configures the necessary {@link Matrix} transformation to `mTextureView`.
      * This method should be called after the camera preview size is determined in
      * setUpCameraOutputs and also the size of `mTextureView` is fixed.
      *
@@ -1044,52 +1204,34 @@ public class CameraActivity extends AppCompatActivity implements GalleryImageIte
 
     }
 
-    public static class ErrorDialog extends DialogFragment {
-
-        private static final String ARG_MESSAGE = "message";
-
-        public static ErrorDialog newInstance(String message) {
-            ErrorDialog dialog = new ErrorDialog();
-            Bundle args = new Bundle();
-            args.putString(ARG_MESSAGE, message);
-            dialog.setArguments(args);
-            return dialog;
-        }
-
-        @Override
-        public Dialog onCreateDialog(Bundle savedInstanceState) {
-            final Activity activity = getActivity();
-            return new AlertDialog.Builder(activity)
-                    .setMessage(getArguments().getString(ARG_MESSAGE))
-                    .setPositiveButton(android.R.string.ok, new DialogInterface.OnClickListener() {
-                        @Override
-                        public void onClick(DialogInterface dialogInterface, int i) {
-                            activity.finish();
-                        }
-                    })
-                    .create();
-        }
-
-    }
-
     @Override
     protected void onResume() {
         super.onResume();
         Log.e(TAG, "onResume");
         startBackgroundThread();
-        if (mTextureView.isAvailable()) {
-            openCamera(cameraController,mTextureView.getWidth(), mTextureView.getHeight());
-        } else {
-            System.out.println("not available");
-            mTextureView.setSurfaceTextureListener(mSurfaceTextureListener);
-        }
-    }
+        if (mTextureView != null && mTextureView.isAvailable()) {
+            closeCamera();
 
-    @Override
-    protected void onPause() {
+            // Execute some code after 500 milliseconds have passed
+            Handler handler = new Handler();
+            handler.postDelayed(new Runnable() {
+                @Override
+                public void run() {
+                    openCamera(cameraController, mTextureView.getWidth(), mTextureView.getHeight());
+        }
+            }, 300);
+
+        } else if (mTextureView != null){
+            //System.out.println("not available");
+            mTextureView.setSurfaceTextureListener(mSurfaceTextureListener);
+                        }
+        }
+
+    //@Override
+    /*protected void onPause() {
         Log.e(TAG, "onPause");
         closeCamera();
         stopBackgroundThread();
         super.onPause();
-    }
+    }*/
 }

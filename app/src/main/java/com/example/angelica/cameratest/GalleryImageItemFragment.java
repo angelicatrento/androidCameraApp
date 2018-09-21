@@ -1,5 +1,6 @@
 package com.example.angelica.cameratest;
 
+import android.*;
 import android.Manifest;
 import android.content.Context;
 import android.content.pm.PackageManager;
@@ -20,7 +21,10 @@ import android.view.ViewGroup;
 import android.widget.Toast;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.ArrayList;
+
+import static android.provider.MediaStore.Images.Thumbnails.MICRO_KIND;
 
 /**
  * A fragment representing a list of Items.
@@ -59,7 +63,7 @@ public class GalleryImageItemFragment extends Fragment {
         photos = new ArrayList<LoadedImage>();
         mListener = (OnListFragmentInteractionListener) getActivity();
 
-        int permissionCheck = ActivityCompat.checkSelfPermission(getActivity(), Manifest.permission.READ_EXTERNAL_STORAGE);
+        int permissionCheck = ActivityCompat.checkSelfPermission(getActivity(), android.Manifest.permission.READ_EXTERNAL_STORAGE);
 
         if (permissionCheck != PackageManager.PERMISSION_GRANTED) {
             ActivityCompat.requestPermissions(getActivity(),
@@ -100,7 +104,7 @@ public class GalleryImageItemFragment extends Fragment {
                              Bundle savedInstanceState) {
         View view = inflater.inflate(R.layout.fragment_galleryimageitem_list, container, false);
 
-        System.out.println("Gallery Image Item Fragment --- onCreateView");
+        //System.out.println("Gallery Image Item Fragment --- onCreateView");
 
         // Set the adapter
         if (view instanceof RecyclerView) {
@@ -163,32 +167,90 @@ public class GalleryImageItemFragment extends Fragment {
             Bitmap newBitmap = null;
             Uri uri = null;
 
-
-            uri = MediaStore.Images.Thumbnails.EXTERNAL_CONTENT_URI;
-
+            // System.out.println("STARTED ACTIVITY - GALLERY ");
+//            uri = MediaStore.Images.Thumbnails.EXTERNAL_CONTENT_URI;
+            uri = MediaStore.Images.Media.EXTERNAL_CONTENT_URI;
             // Set up an array of the Thumbnail Image ID column we want
+            String[] columnsImages = {MediaStore.Images.Media._ID,MediaStore.Images.Media.DATE_TAKEN,MediaStore.Images.Media.DATA};
+            String sortOrderImages = MediaStore.Images.Media.DATE_TAKEN + " DESC";
             String[] columns = {MediaStore.Images.Thumbnails._ID,MediaStore.Images.Thumbnails.IMAGE_ID};
             String sortOrder = MediaStore.Images.Thumbnails.IMAGE_ID + " DESC";
             // Create the cursor pointing to the SDCard
-            Cursor cursor = getActivity().getContentResolver().query(uri, columns, null, null, sortOrder  );
-            int columnIndex = cursor.getColumnIndexOrThrow(MediaStore.Images.Thumbnails._ID);
+            if(getActivity() != null && getActivity().getContentResolver() != null){
+                Cursor cursor = getActivity().getContentResolver().query(uri, columnsImages, null, null, sortOrderImages  );
+                int columnIndex = cursor.getColumnIndexOrThrow(MediaStore.Images.Media._ID);
+                int column_index2 = cursor.getColumnIndexOrThrow(MediaStore.Images.Media.DATA);
             int size = cursor.getCount();
             // If size is 0, there are no images on the SD Card.
             if (size == 0) {
                 //No Images available, post some message to the user
             }
             int imageID = 0;
+                String fileName = "";
             for (int i = 0; i < size; i++) {
                 cursor.moveToPosition(i);
                 imageID = cursor.getInt(columnIndex);
-                uri = Uri.withAppendedPath(MediaStore.Images.Thumbnails.EXTERNAL_CONTENT_URI, "" + imageID);
+                    fileName = cursor.getString(column_index2);
+                    // System.out.println("filename " + fileName);
+
+                    uri = Uri.withAppendedPath(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, "" + imageID);
+                    Bitmap image = null;
+
+//                if(getContext() != null){
+//
+//                    image = getThumbnailBitmap(uri);
+
+//                            MediaStore.Images.Thumbnails.getThumbnail(getContext().getContentResolver(),imageID,MediaStore.Images.Thumbnails.MICRO_KIND,null);
+//                uri = Uri.withAppendedPath(
+//                        MediaStore.Images.Thumbnails.getThumbnail(getContext().getContentResolver(),imageID,MediaStore.Images.Thumbnails.MICRO_KIND,null)
+                    //MediaStore.Images.Media.EXTERNAL_CONTENT_URI)
+//                                , "" + imageID);
+//                windows[i] = MediaStore.Images.Thumbnails.getThumbnail(
+//                        this.getApplicationContext().getContentResolver(), imageID,
+//                        MediaStore.Images.Thumbnails.MICRO_KIND, null);
+
                 try {
+//                    if (image != null && getActivity() != null)
                     if (getActivity() != null)
                     {
+                            //String path = getThumbnailPath(getContext(),uri.getPath());
+                            //bitmap = BitmapFactory.decodeStream(getActivity().getContentResolver().openInputStream(uri));
+                            //verify if uri is valid
+                            if(bitmap != null)
+                                bitmap.recycle();
 
-                        bitmap = BitmapFactory.decodeStream(getActivity().getContentResolver().openInputStream(uri));
+                            if(image != null)
+                                image.recycle();
 
-                        boolean isLandscape = bitmap.getWidth() > bitmap.getHeight();
+                            InputStream is = getActivity().getContentResolver().openInputStream(uri);
+                            BitmapFactory.Options options = new BitmapFactory.Options();
+                            options.inPreferredConfig = Bitmap.Config.RGB_565;
+                            options.inSampleSize = 4;
+                            options.inJustDecodeBounds = true; //avoid allocate memory
+                            bitmap = BitmapFactory.decodeStream(is,null,options);
+                            is.close();
+
+                            if(getContext() !=null && getContext().getContentResolver()!= null) {
+                                BitmapFactory.Options optionsthumb = new BitmapFactory.Options();
+                                options.inSampleSize = 4;
+                                options.inJustDecodeBounds = false; //avoid allocate memory
+                                image = MediaStore.Images.Thumbnails.getThumbnail(getContext().getContentResolver(), imageID, MICRO_KIND, optionsthumb);
+                            }
+
+                            //MediaStore.Images.Thumbnails.getThumbnail(getContext().getContentResolver(),imageID,MediaStore.Images.Thumbnails.MICRO_KIND,null);
+//                        Cursor cursorThumb = MediaStore.Images.Thumbnails.queryMiniThumbnail(getContext().getContentResolver(), imageID, MediaStore.Images.Thumbnails.MINI_KIND, null);
+                            if (image != null)
+                            {
+//                            cursorThumb.moveToFirst();
+//                            image =
+//                            result = cursor.getString(cursor.getColumnIndexOrThrow(MediaStore.Images.Thumbnails.DATA));
+//                            cursor.close();
+                                bitmap = image;
+                            }
+
+//                        System.out.println("Thumbnail path " + path + " imageid " + imageID);
+//                        bitmap = image;
+//                        boolean isLandscape = bitmap.getWidth() > bitmap.getHeight();
 
                         int newWidth, newHeight;
 //                        if (isLandscape)
@@ -201,23 +263,30 @@ public class GalleryImageItemFragment extends Fragment {
 //                            newWidth = Math.round(((float) newHeight / bitmap.getHeight()) * bitmap.getWidth());
 //                        }
 
+
+
+                            if (bitmap != null) {
                         newWidth = 100;
                         double aspectRatio = (double) bitmap.getHeight() / (double) bitmap.getWidth();
                         newHeight = (int) (newWidth * aspectRatio);
 
-
-                        if (bitmap != null) {
                             newBitmap = Bitmap.createScaledBitmap(bitmap, newWidth, newHeight, false);
                             bitmap.recycle();
                             if (newBitmap != null) {
-                                publishProgress(new LoadedImage(newBitmap));
+
+                                    publishProgress(new LoadedImage(newBitmap,fileName));
                             }
                         }
                     }
                     else{
-                        System.out.println("------------------ Activity NULL ------------------ ");
+                            //System.out.println("------------------ Activity NULL ------------------ ");
                         this.cancel(true);
                     }
+//                }else{
+//
+//                    System.out.println("------------------ context NULL ------------------ ");
+//                    this.cancel(true);
+//                }
                 } catch (IOException e) {
                     //Error fetching image, try to recover
                     //break;
@@ -226,11 +295,15 @@ public class GalleryImageItemFragment extends Fragment {
             cursor.close();
             return null;
         }
+            else {
+                return null;
+            }
+        }
 
         @Override
         protected void onCancelled(Object o) {
             super.onCancelled(o);
-            System.out.println("CANCELOU ASYNCTASK - IMAGES");
+            //System.out.println("CANCELOU ASYNCTASK - IMAGES");
         }
 
         /**
@@ -241,6 +314,7 @@ public class GalleryImageItemFragment extends Fragment {
         @Override
         public void onProgressUpdate(LoadedImage... value) {
             for (LoadedImage image : value) {
+                //System.out.println("image " + image.getPath());
                 photos.add(image);
                 recyclerViewadapter.notifyDataSetChanged();
             }
@@ -255,5 +329,31 @@ public class GalleryImageItemFragment extends Fragment {
             //setProgressBarIndeterminateVisibility(false);
             recyclerViewadapter.notifyDataSetChanged();
         }
+    }
+
+    public static String getThumbnailPath(Context context, String path)
+    {
+        long imageId = -1;
+
+        String[] projection = new String[] { MediaStore.MediaColumns._ID };
+        String selection = MediaStore.MediaColumns.DATA + "=?";
+        String[] selectionArgs = new String[] { path };
+        Cursor cursor = context.getContentResolver().query(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, projection, selection, selectionArgs, null);
+        if (cursor != null && cursor.moveToFirst())
+        {
+            imageId = cursor.getInt(cursor.getColumnIndex(MediaStore.MediaColumns._ID));
+            cursor.close();
+        }
+
+        String result = null;
+        cursor = MediaStore.Images.Thumbnails.queryMiniThumbnail(context.getContentResolver(), imageId, MediaStore.Images.Thumbnails.MINI_KIND, null);
+        if (cursor != null && cursor.getCount() > 0)
+        {
+            cursor.moveToFirst();
+            result = cursor.getString(cursor.getColumnIndexOrThrow(MediaStore.Images.Thumbnails.DATA));
+            cursor.close();
+        }
+
+        return result;
     }
 }
