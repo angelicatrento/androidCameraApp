@@ -1,13 +1,18 @@
 package com.example.angelica.cameratest;
 
+import android.app.AlertDialog;
 import android.content.ContentResolver;
 import android.content.ContentUris;
 import android.content.ContentValues;
+import android.content.Context;
+import android.content.DialogInterface;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Matrix;
 import android.net.Uri;
+import android.os.Handler;
 import android.provider.MediaStore;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
@@ -18,9 +23,11 @@ import android.widget.ImageView;
 import android.widget.LinearLayout;
 
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.util.UUID;
 
 import static com.example.angelica.cameratest.CameraActivity.CAMERA_FRONT;
 
@@ -30,15 +37,24 @@ public class PictureConfirmation extends AppCompatActivity {
     private ImageView show_picture;
     String image_path;
     String camera_id;
+	Bitmap image_bitmap;
+    Boolean origemGallery = false;
+	
+	Bitmap myBitmap = null;
+    private boolean isAlbum;
+    private int imageID;
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_picture_confirmation);
         File image;
-
+		isAlbum = false;
         //Get any potential intent that was passed to the activity
+        Bitmap bmp = null;
         Intent intent = getIntent();
+        Uri imageURI = null;
         show_picture = (ImageView) findViewById(R.id.confirm_shown_picture);
+        Boolean openImage = false;
         assert show_picture != null;
         //        System.out.println("TESTE ------ " + intent);
         if (intent != null) {
@@ -46,12 +62,43 @@ public class PictureConfirmation extends AppCompatActivity {
             //Is there a string extra in that intent?
             image_path = intent.getStringExtra("PICTURE");
             camera_id = intent.getStringExtra("CAMERA");
+            if(intent.hasExtra("IMAGE_ID")){
+                isAlbum = true;
+                String validate = intent.getStringExtra("IMAGE_ID");
+                System.out.println("Validate camera_id " + validate);
+                if(validate != null && !validate.trim().equals("")){
+
+                    imageID = Integer.parseInt(intent.getStringExtra("IMAGE_ID"));
+                    System.out.println("ORIGEM ALBUM - " + imageID);
+
+                }
+
+            }
+
+            if(intent.hasExtra("GALLERY"))
+            {
+                origemGallery = true;
+            }
+            if(intent.hasExtra("image"))
+            {
+                imageURI = intent.getData();
+                openImage = true;
+                System.out.println("image " + intent.getStringExtra("image"));
+                String filename = getIntent().getStringExtra("image");
+                try {
+                    FileInputStream is = this.openFileInput(filename);
+                    bmp = BitmapFactory.decodeStream(is);
+                    is.close();
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            }
             System.out.println("IMAGE PATH ---------- " + image_path );
             File imgFile = new  File(image_path);
 
             if(imgFile.exists()){
 
-                Bitmap myBitmap = BitmapFactory.decodeFile(imgFile.getAbsolutePath());
+                myBitmap = BitmapFactory.decodeFile(imgFile.getAbsolutePath());
                 if (camera_id.equals(CAMERA_FRONT) /*CAMERA FRONTAL*/)
                 {
                     myBitmap =  flipImage(myBitmap);
@@ -61,6 +108,21 @@ public class PictureConfirmation extends AppCompatActivity {
                 show_picture.setAdjustViewBounds(true);
                 show_picture.setImageBitmap(myBitmap);
 
+            }else {
+                if (openImage && imageURI != null)
+                {
+                    Bitmap bitmap = null;
+                    try {
+                        bitmap = MediaStore.Images.Media.getBitmap(this.getContentResolver(), imageURI);
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
+                    show_picture.setLayoutParams(new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.MATCH_PARENT));
+                    show_picture.setScaleType(ImageView.ScaleType.FIT_CENTER);
+                    show_picture.setAdjustViewBounds(true);
+                    show_picture.setImageBitmap(bitmap);
+
+                }
             }
         }
 
@@ -73,18 +135,61 @@ public class PictureConfirmation extends AppCompatActivity {
         save_picture.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
+                if(!origemGallery)
+                {
                 savePicture(image_path);
+            }
+
+                if(isAlbum)
+                {
+                   // uploadMultipart();
+                }else{
+                    backToPreviousScreen(image_path);
+                }
+
             }
         });
 
         cancel_picture.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
+                if(!origemGallery)
+                {
                 deletePicture(image_path);
+            }
+                backToCamera();
+
             }
         });
     }
 
+
+    @Override
+    public void onDestroy() {
+        super.onDestroy();
+        Runtime.getRuntime().gc();
+    }
+
+    public void backToPreviousScreen(String image_path){
+
+        //Intent backActivity = new Intent(this,CameraActivity.class);
+       // dbRegisterClient.updateImagePathTempRegister(image_path);
+//                    String teste = dbRegisterClient.getTableAsString(dbRegisterClient.getReadableDatabase(),"TempRegister");
+        //if(!image_path.trim().equals(""))
+        //   backActivity.putExtra("IMAGE_PATCH",image_path);
+
+
+        finish();
+        myBitmap.recycle();
+    }
+
+    public void backToCamera(){
+
+        Intent backActivity = new Intent(this,CameraActivity.class);
+        finish();
+        myBitmap.recycle();
+        startActivity(backActivity);
+    }
     public static Bitmap rotateImage(Bitmap imageToOrient, int degreesToRotate) {
         Bitmap result = imageToOrient;
         try {
@@ -129,7 +234,7 @@ public class PictureConfirmation extends AppCompatActivity {
     {
         File imgFile = new  File(filePath);
 
-        Bitmap myBitmap = BitmapFactory.decodeFile(imgFile.getAbsolutePath());
+        //Bitmap myBitmap = BitmapFactory.decodeFile(imgFile.getAbsolutePath());
 
         //Toast.makeText(PictureConfirmation.this, "Saved:" + filePath, Toast.LENGTH_SHORT).show();
 //        insertImage(getContentResolver(),
@@ -137,9 +242,6 @@ public class PictureConfirmation extends AppCompatActivity {
 //                "Test",
 //                "GoMovvn picture");
         galleryAddPic(filePath);
-        Intent backActivity = new Intent(this,CameraActivity.class);
-        finish();
-        startActivity(backActivity);
 
     }
 
@@ -148,9 +250,7 @@ public class PictureConfirmation extends AppCompatActivity {
         File file = new File(filePath);
         file.delete();
 //        Toast.makeText(PictureConfirmation.this, "Cancel Picture:", Toast.LENGTH_SHORT).show();
-        Intent backActivity = new Intent(this,CameraActivity.class);
-        finish();
-        startActivity(backActivity);
+
     }
 
     private void galleryAddPic(String path) {
